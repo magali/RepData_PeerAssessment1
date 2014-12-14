@@ -8,18 +8,112 @@ output:
 
 ## Loading and preprocessing the data
 
+```{r}
+df = read.csv('activity.csv',as.is=T)
+```
 
 
 ## What is mean total number of steps taken per day?
 
+```{r total-day-histo,dpi=100}
+df.no.NA = subset(df,!is.na(steps))
+per.day = split(df.no.NA,df.no.NA$date)
+per.day.total = sapply(per.day,function(x) sum(x$steps))
+hist(
+        per.day.total,
+        xlab = 'Total number of steps taken each day',
+        las = 1,main=''
+        )
+mean = mean(per.day.total)
+median = median(per.day.total)
+```
+The mean is `r mean` and the median is `r median` days.
 
 
 ## What is the average daily activity pattern?
+
+```{r activity-pattern,dpi=100}
+per.interval = split(df.no.NA,df.no.NA$interval)
+per.interval.avg = sapply(per.interval,function(x) mean(x$steps))
+plot(
+        x = names(per.interval.avg),xlab='5-minute interval',
+        y = per.interval.avg,ylab='Average number of steps taken',
+        las = 1, type='l',bty='n'
+        )
+
+m = which.max(per.interval.avg)
+```
+
+The 5-minute interval `r names(m)` contains the maximum number of steps, on average across all the days in the dataset: `r per.interval.avg[m]`.
 
 
 
 ## Imputing missing values
 
+```{r}
+na = !complete.cases(df)
+table(na)
+```
+`r sum(na)` lines contains missing values.
+
+We impute the missing values using the mean for that 5-minute interval.
+```{r}
+withNA = df[!complete.cases(df),]
+withNA$steps = per.interval.avg[as.character(withNA$interval)]
+dfImputed = rbind(df.no.NA,withNA)
+```
+
+```{r total-day-histo-imputed,dpi=100}
+per.day = split(dfImputed,dfImputed$date)
+per.day.total = sapply(per.day,function(x) sum(x$steps))
+hist(
+        per.day.total,
+        xlab = 'Total number of steps taken each day',
+        las = 1,main=''
+        )
+mean2 = mean(per.day.total)
+median2 = median(per.day.total)
+```
+The mean is `r mean` and the median is `r median` days.
+
+What is the impact of imputing missing data on the estimates of the total daily number of steps?
+
+```{r}
+mean==mean2
+diff = median - median2
+```
+It shifts (increases) the median by `r abs(diff)`.
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r}
+date = as.Date(dfImputed$date)
+dfImputed$day = weekdays(date)
+dfImputed$we = factor(
+        dfImputed$day %in% c('Saturday','Sunday'),
+        labels = c('weekend','weekday'),
+        levels = c('TRUE','FALSE')
+        )
+```
+
+
+```{r panel-plot,dpi=100}
+library('lattice')
+dfImputedAvg = unique(dfImputed[,c('interval','we')])
+dfImputedAvg$steps = NA
+for (i in 1:nrow(dfImputedAvg)){
+        s = subset(dfImputed,
+                interval==dfImputedAvg$interval[[i]]&
+                        we==dfImputedAvg$we[[i]])
+        dfImputedAvg$steps[[i]] = mean(s$steps)
+}
+xyplot(steps ~ interval | we,data=dfImputedAvg,type='l')
+```
+
+There are indeed some clear differences between weekend and weekdays, where the number of steps is more constant over the day during the weekend.
+
+```{r}
+sessionInfo()
+```
+
